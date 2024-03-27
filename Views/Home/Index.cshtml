@@ -1,0 +1,475 @@
+﻿@model Tuple<IEnumerable<SelectListItem>, IEnumerable<SelectListItem>, IEnumerable<SelectListItem>>
+
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>@ViewBag.Title</title>
+        <meta charset="UTF-8">
+       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+       <title>Restaurant Payment</title>
+<!-- Bootstrap CSS -->
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        
+  
+
+        <script type="text/javascript">
+
+
+
+        $(document).ready(function () {
+            $("#Item").val(0);
+            $("#Item").change(function () {
+                var itemId = $(this).val();
+                GetItemUnitPrice(itemId);
+            });
+            $("input[type=text]").change(function () {
+                CalculateSubTotal();
+            });
+
+            $(document).on("click", ".remove-btn", function () {
+                RemoveItem($(this)); // Pass the button element to RemoveItem function
+            });
+
+            $("#btnAddToList").click(function () {
+                AddToTheItemList();
+            });
+            $("#btnCheckout").click(function () {
+                $("#divPayment").modal('show'); // Show the payment modal when checkout button is clicked
+            });
+            $("input[type=text]").keyup(function () {
+                CalculateBalance();
+            });
+            $("#btnPayment").click(function () {
+                FinalPayment();
+            });
+        });
+           function FinalPayment() {
+    var objOrderViewModel = {};
+    var ListOfOrderDetailViewModel = [];
+
+    objOrderViewModel.PaymentTypeId = $("#PaymentType").val();
+    objOrderViewModel.CustomerId = $("#Customer").val();
+    objOrderViewModel.FinalTotal = parseFloat($("#txtFinalTotal").val());
+
+    $("#tblRestaurantItemList").find("tr:gt(0)").each(function () {
+        var OrderDetailViewModel = {};
+        OrderDetailViewModel.Total = parseFloat($(this).find("td:eq(5)").text());
+        OrderDetailViewModel.ItemId = parseFloat($(this).find("td:eq(0)").text());
+        OrderDetailViewModel.UnitPrice = parseFloat($(this).find("td:eq(2)").text());
+        OrderDetailViewModel.Quantity = parseFloat($(this).find("td:eq(3)").text());
+        OrderDetailViewModel.Discount = parseFloat($(this).find("td:eq(4)").text());
+        ListOfOrderDetailViewModel.push(OrderDetailViewModel);
+    });
+
+    objOrderViewModel.ListOfOrderDetailViewModel = ListOfOrderDetailViewModel;
+
+    $.ajax({
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json; charset=utf-8',
+        data: JSON.stringify(objOrderViewModel),
+        url: '/Home/Index', // Update the URL to match your controller action
+
+        success: function (data) {
+            alert(data);
+        },
+        error: function () {
+            alert("There is some problem adding data.");
+        }
+    });
+}
+
+
+
+            function RemoveItem(itemId) {
+                $(itemId).closest('tr').remove();
+                FinalItemTotal(); // Update total after removing item
+            }
+
+            function CalculateSubTotal() {
+                var UnitPrice = parseFloat($("#txtUnitPrice").val());
+                var Quantity = parseFloat($("#txtQuantity").val());
+                var Discount = parseFloat($("#txtDiscount").val());
+
+                if (!isNaN(UnitPrice) && !isNaN(Quantity) && !isNaN(Discount)) {
+                    var Total = (UnitPrice * Quantity) - Discount;
+                    $("#txtTotal").val(Total.toFixed(2));
+                } else {
+                    $("#txtTotal").val("0.00");
+                }
+            }
+
+            function AddToTheItemList() {
+                var tblItemList = $("#tblRestaurantItemList");
+                var UnitPrice = $("#txtUnitPrice").val();
+                var Quantity = $("#txtQuantity").val();
+                var Discount = $("#txtDiscount").val();
+                var ItemId = $("#Item").val();
+                var ItemName = $("#Item option:selected").text();
+                var Total = (UnitPrice * Quantity) - Discount;
+
+                var ItemList = "<tr><td hidden>" + ItemId + "</td><td>" + ItemName + "</td><td>" + parseFloat(UnitPrice).toFixed(2) + "</td><td>" + parseFloat(Quantity).toFixed(2) + "</td><td>" + parseFloat(Discount).toFixed(2) + "</td><td>" + parseFloat(Total).toFixed(2) + "</td><td><input type='button' value='Remove' name='remove' onclick='RemoveItem(this)' class='remove-btn'/></td></tr>";
+
+                tblItemList.append(ItemList);
+                ResetItem();
+                FinalItemTotal();
+
+                // Scroll to the bottom of the table to show the newly added item
+                tblItemList.scrollTop(tblItemList.prop("scrollHeight"));
+            }
+
+            function FinalItemTotal() {
+                $("#txtFinalTotal").val("0.00");
+                var FinalTotal = 0.00;
+                $("#tblRestaurantItemList").find("tr:gt(0)").each(function () {
+                    var Total = parseFloat($(this).find("td:eq(5)").text());
+                    FinalTotal += Total;
+                });
+                $("#txtFinalTotal").val(parseFloat(FinalTotal).toFixed(2));
+                $("#txtPaymentTotal").val(parseFloat(FinalTotal).toFixed(2));
+                $("#txtBalance").val(parseFloat(FinalTotal).toFixed(2));
+            }
+
+            function CalculateBalance() {
+                var FinalAmount = $("#txtPaymentTotal").val();
+                var PaymentAmount = $("#txtPaymentAmount").val();
+                var ReturnAmount = $("#txtReturnTotal").val();
+                var BalanceAmount = parseFloat(FinalAmount) - parseFloat(PaymentAmount) + parseFloat(ReturnAmount);
+                $("#txtBalance").val(parseFloat(BalanceAmount).toFixed(2));
+                if (parseFloat(BalanceAmount) == 0) {
+                    $("#btnPayment").removeAttr("disabled");
+                } else {
+                    $("#btnPayment").attr("disabled", "disabled");
+                }
+            }
+
+            function ResetItem() {
+                $("#txtUnitPrice").val('');
+                $("#txtQuantity").val('');
+                $("#txtDiscount").val('');
+                $("#Item").val(0);
+                $("#txtTotal").val("");
+            }
+
+            function GetItemUnitPrice(itemId) {
+                $.ajax({
+                    url: '@Url.Action("getItemUnitPrice", "Home")',
+                    type: 'GET',
+                    dataType: 'json',
+                    data: { id: itemId },
+                    success: function (data) {
+                        $("#txtUnitPrice").val(parseFloat(data).toFixed(2));
+                        CalculateSubTotal(); // Calculate total after getting unit price
+                    },
+                    error: function () {
+                        alert("There is some problem getting the unit price.");
+                    }
+                });
+            }
+
+
+
+        </script>
+  
+
+
+       
+
+<style>
+     .modal {
+        text-align: center;
+        padding: 0 !important;
+        margin-top:5%;
+    }
+
+
+        .modal:before {
+            content: '';
+            display: inline-block;
+            height: 100%;
+            vertical-align: middle;
+            margin-right: -4px;
+        }
+
+    .modal-dialog {
+        display: inline-block;
+        text-align: left;
+        vertical-align: middle;
+     
+    }
+   
+
+    
+    /*.modal {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        overflow-y: auto;*/ /* Enable vertical scrolling */
+    /*}
+
+    .modal-dialog {
+        margin-top: 10vh;*/ /* Adjust the top margin as needed */
+        /*max-height: calc(100vh - 20vh);*/ /* Calculate max height based on viewport height */
+    /*}*/
+
+    /* Hide body overflow when modal is open */
+    /*.modal-open {
+        overflow: hidden;
+    }*/
+
+    /* Example container styles */
+    /*.container {
+        max-width: 100%;*/ /* Adjust as needed */
+        /*overflow-x: hidden;*/ /* Hide horizontal overflow */
+        /*padding: 20px;*/ /* Example padding */
+    /*}*/
+
+   
+    fieldset {
+        border: 1px solid #ddd !important;
+        margin: 0;
+        xmin-width: 0;
+        padding: 10px;
+        position: relative;
+        border-radius: 4px;
+        background-color: #f5f5f5;
+        padding-left: 10px !important;
+    }
+
+    legend {
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 0px;
+        width: 35%;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 5px 5px 5px 10px;
+        background-color: #ffffff;
+    }
+
+    .form-group {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+    }
+
+        .form-group label {
+            width: 120px;
+            margin-right: 10px;
+            text-align: right;
+        }
+
+    .form-control,
+    select.form-control {
+        flex: 1;
+        width: 100%;
+        max-width: 280px;
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+
+    .btn-success {
+        background-color: #39FF14;
+        color: black;
+        border-color: #39FF14;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+        color: #fff;
+    }
+
+    .row::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    .col-md-6 {
+        width: 50%;
+        float: left;
+    }
+
+    #btnAddToList {
+        margin-top: 190px;
+        margin-left: 0px;
+    }
+
+    #tblRestaurantItemList th,
+    #tblRestaurantItemList td {
+        text-align: center;
+        padding: 8px;
+    }
+
+    .remove-btn {
+        background-color: red;
+        color: white;
+        border: 1px solid red;
+        padding: 6px 12px;
+        cursor: pointer;
+    }
+
+        .remove-btn:hover {
+            background-color: darkred;
+            border-color: darkred;
+        }
+</style>
+
+
+
+
+</head>
+    <body>
+        <fieldset>
+            <legend>Restaurant</legend>
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="Customer">Customer:</label>
+                            @Html.DropDownList("Customer", new SelectList(Model.Item1, "Value", "Text"), new { @class = "form-control" })
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="PaymentType">Payment Type:</label>
+                            @Html.DropDownList("PaymentType", new SelectList(Model.Item3, "Value", "Text"), new { @class = "form-control" })
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="txtFinalTotal">Total:</label>
+                            <input style="text-align:right" type="text" value="0.00" name="FinalTotal" readonly="readonly" id="txtFinalTotal" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>Restaurant Items</legend>
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="Item">Item:</label>
+                            @Html.DropDownList("Item", new SelectList(Model.Item2, "Value", "Text"), new { @class = "form-control" })
+                        </div>
+                        <div class="form-group">
+                            <label for="txtUnitPrice">Unit Price:</label>
+                            <input style="text-align:right" type="text" readonly="readonly" id="txtUnitPrice" value="0.00" name="UnitPrice" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label for="txtQuantity">Quantity:</label>
+                            <input type="text" style="text-align:right" id="txtQuantity" value="0" name="Quantity" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label for="txtDiscount">Discount:</label>
+                            <input type="text" style="text-align:right" id="txtDiscount" value="0" name="Discount" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label for="txtTotal">Total:</label>
+                            <input type="text" style="text-align:right" readonly="readonly" id="txtTotal" value="0.00" name="Total" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <input type="button" id="btnAddToList" value="Add To List" name="AddToList" class="btn btn-success" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>
+                Restaurant Listed Items
+            </legend>
+            <table style="width:100%" id="tblRestaurantItemList">
+                <thead>
+                    <tr>
+                        <th hidden>
+                            Item Id
+                        </th>
+                        <th>
+                            Item Name
+                        </th>
+                        <th>
+                            Unit Price
+                        </th>
+                        <th>
+                            Quantity
+                        </th>
+                        <th>
+                            Discount
+                        </th>
+                        <th>
+                            Total
+                        </th>
+                        <th>
+                            Action
+                        </th>
+                    </tr>
+                </thead>
+            </table>
+        </fieldset>
+        <div style="margin-top:10px">
+            <button type="button" id="btnCheckout" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#divPayment">
+                Checkout
+            </button>
+            </div>
+
+            <!-- Payment Modal -->
+            <div id="divPayment" class="modal fade" role="dialog">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="btn-close" data-bs-dismiss="modal">&times;</button>
+                            <h4 class="modal-title">Payment</h4>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Payment form or content goes here -->
+                            <div class="container">
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        Payment Total:
+                                        <input style="text-align:right" type="text" id="txtPaymentTotal" readonly="readonly" value="0.00" class="form-control" />
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        Payment Amount:
+                                        <input style="text-align:right" type="text" id="txtPaymentAmount" value="0.00" class="form-control" />
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        Return Total:
+                                        <input style="text-align:right" type="text" id="txtReturnTotal" value="0.00" class="form-control" />
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        Balance Amount:
+                                        <input style="text-align:right" type="text" readonly="readonly" id="txtBalance" value="0.00" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-success" id="btnPayment">Pay Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+    </html>
+
+
+
+
